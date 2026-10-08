@@ -14,11 +14,74 @@ import OperationError from "../errors/OperationError.mjs";
  * @param {byteArray} key
  * @param {function} func - The bitwise calculation to carry out
  * @param {boolean} nullPreserving
- * @param {string} scheme
+ * @param {string} scheme - "Standard", "Input differential", "Output differential", "Cascade" or one of the rolling schemes
+ * @param {number} [blockSizeBytes=1] - The block size in bytes used by the rolling schemes (1, 2, 4 or 8)
+ * @param {string} [endianness="Little Endian"] - The byte order used to pack each block into an integer
+ * @param {number} [incrementValue=0] - The number added to the key after each block by "Rolling increment"
  * @returns {byteArray}
  */
-export function bitOp (input, key, func, nullPreserving, scheme) {
+export function bitOp(input, key, func, nullPreserving, scheme, blockSizeBytes = 1, endianness = "Little Endian", incrementValue = 0) {
     if (!key || !key.length) key = [0];
+
+    // The rolling schemes treat the key as a single unsigned integer of
+    // blockSizeBytes bytes which evolves after each complete block
+    if (scheme === "Rolling increment" ||
+        scheme === "Rolling add plaintext" ||
+        scheme === "Rolling add ciphertext") {
+        if (!Number.isInteger(blockSizeBytes) || blockSizeBytes < 1 || blockSizeBytes > 8) {
+            throw new OperationError("Invalid block size");
+        }
+        const littleEndian = endianness === "Little Endian",
+            result = new Array(input.length),
+            keyBytes = new Array(blockSizeBytes).fill(0),
+            cipherBytes = new Array(blockSizeBytes);
+        let r = 0;
+
+        // The key is read as an unsigned integer, most significant byte first,
+        // then serialised in the block's byte order. Its high-order bytes are
+        // discarded if it is wider than the block size.
+        if (key.length) {
+            const len = Math.min(key.length, blockSizeBytes),
+                offset = key.length - len;
+            if (littleEndian) {
+                for (let i = 0; i < len; i++) keyBytes[len - 1 - i] = key[offset + i];
+            } else {
+                for (let i = 0; i < len; i++) keyBytes[blockSizeBytes - len + i] = key[offset + i];
+            }
+        }
+
+        let pos = 0;
+        for (; pos + blockSizeBytes <= input.length; pos += blockSizeBytes) {
+            for (let j = 0; j < blockSizeBytes; j++) {
+                const o = input[pos + j],
+                    x = func(o, keyBytes[j]);
+                cipherBytes[j] = x;
+                result[r++] = nullPreserving && (o === 0 || o === keyBytes[j]) ? o : x;
+            }
+
+            switch (scheme) {
+                case "Rolling increment":
+                    addToKeyBytes(keyBytes, incrementValue, littleEndian);
+                    break;
+                case "Rolling add plaintext":
+                    addBytesToKeyBytes(keyBytes, input, pos, littleEndian);
+                    break;
+                case "Rolling add ciphertext":
+                    addBytesToKeyBytes(keyBytes, cipherBytes, 0, littleEndian);
+                    break;
+            }
+        }
+
+        // Any trailing bytes are XORed against the current key without updating it
+        for (let j = pos; j < input.length; j++) {
+            const o = input[j],
+                kb = keyBytes[j - pos];
+            result[r++] = nullPreserving && (o === 0 || o === kb) ? o : func(o, kb);
+        }
+
+        return result;
+    }
+
     const result = [];
     let x = null,
         k = null,
@@ -42,82 +105,6 @@ export function bitOp (input, key, func, nullPreserving, scheme) {
                     break;
             }
         }
-    }
-
-    return result;
-}
-
-/**
- * Runs a rolling XOR across the input data, treating the key as a single
- * integer of blockSizeBytes bytes which evolves after each complete block.
- *
- * @param {byteArray|Uint8Array} input
- * @param {byteArray} key
- * @param {string} scheme - One of "Rolling increment", "Rolling add plaintext" or "Rolling add ciphertext"
- * @param {boolean} nullPreserving
- * @param {number} blockSizeBytes - The size of each input block in bytes (1, 2, 4 or 8)
- * @param {string} endianness - "Little Endian" or "Big Endian"
- * @param {number} incrementValue - The value added to the key after each block
- * @returns {byteArray}
- */
-export function rollingXor(
-    input,
-    key,
-    scheme,
-    nullPreserving,
-    blockSizeBytes,
-    endianness,
-    incrementValue
-) {
-    if (!Number.isInteger(blockSizeBytes) || blockSizeBytes < 1 || blockSizeBytes > 8) {
-        throw new OperationError("Invalid block size");
-    }
-    const littleEndian = endianness === "Little Endian",
-        result = new Array(input.length),
-        keyBytes = new Array(blockSizeBytes).fill(0),
-        cipherBytes = new Array(blockSizeBytes);
-    let r = 0;
-
-    // Treat the key as a single unsigned integer of the chosen block size,
-    // read most significant byte first, then serialised in the block's byte
-    // order. Bytes beyond the block size (the high-order bytes) are discarded.
-    if (key && key.length) {
-        const len = Math.min(key.length, blockSizeBytes),
-            offset = key.length - len;
-        if (littleEndian) {
-            for (let i = 0; i < len; i++) keyBytes[len - 1 - i] = key[offset + i];
-        } else {
-            for (let i = 0; i < len; i++) keyBytes[blockSizeBytes - len + i] = key[offset + i];
-        }
-    }
-
-    let pos = 0;
-    for (; pos + blockSizeBytes <= input.length; pos += blockSizeBytes) {
-        for (let j = 0; j < blockSizeBytes; j++) {
-            const o = input[pos + j];
-            const x = o ^ keyBytes[j];
-            cipherBytes[j] = x;
-            result[r++] = nullPreserving && (o === 0 || o === keyBytes[j]) ? o : x;
-        }
-
-        switch (scheme) {
-            case "Rolling increment":
-                addToKeyBytes(keyBytes, incrementValue, littleEndian);
-                break;
-            case "Rolling add plaintext":
-                addBytesToKeyBytes(keyBytes, input, pos, littleEndian);
-                break;
-            case "Rolling add ciphertext":
-                addBytesToKeyBytes(keyBytes, cipherBytes, 0, littleEndian);
-                break;
-        }
-    }
-
-    // Any trailing bytes are XORed against the current key without updating it
-    for (let j = pos; j < input.length; j++) {
-        const o = input[j],
-            kb = keyBytes[j - pos];
-        result[r++] = nullPreserving && (o === 0 || o === kb) ? o : o ^ kb;
     }
 
     return result;

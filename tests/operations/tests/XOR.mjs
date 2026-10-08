@@ -240,34 +240,34 @@ TestRegister.addTests([
         ]
     },
     {
-        name: "XOR: Rolling add plaintext decode (32-bit little endian)",
+        name: "XOR: Rolling add plaintext decode via Rolling add ciphertext (32-bit little endian)",
         input: "2e9d93cd5177169bb03770aae98b7c018d65b81a497974dd01d21e1d09d2dffb21c28365dbe6b28b71f7951d0c16a5c4bdda0b8842188f00b711b6dfb7636c6fb64e1200",
         expectedOutput: "31c0506a016a0289e1b06631dbb301cd8089c683c40c31c0505068c0a800016668115c666a0289e16a10515689e1b066b303cd8083c41c89f3b006cd8031dbb001cd8090",
         recipeConfig: [
             { "op": "From Hex", "args": ["None"] },
-            { "op": "XOR", "args": [{ "option": "Hex", "string": "a7c35d1f" }, "Rolling add plaintext", false, "32-bit", "Little Endian", 0, "Decode"] },
+            { "op": "XOR", "args": [{ "option": "Hex", "string": "a7c35d1f" }, "Rolling add ciphertext", false, "32-bit", "Little Endian", 0] },
             { "op": "To Hex", "args": ["None"] }
         ]
     },
     {
-        name: "XOR: Rolling add plaintext roundtrip across many blocks (32-bit little endian, Encode then Decode)",
+        name: "XOR: Rolling add plaintext roundtrip across many blocks (32-bit little endian)",
         input: "31c0506a016a0289e1b06631dbb301cd8089c683c40c31c0505068c0a800016668115c666a0289e16a10515689e1b066b303cd8083c41c89f3b006cd8031dbb001cd8090",
         expectedOutput: "31c0506a016a0289e1b06631dbb301cd8089c683c40c31c0505068c0a800016668115c666a0289e16a10515689e1b066b303cd8083c41c89f3b006cd8031dbb001cd8090",
         recipeConfig: [
             { "op": "From Hex", "args": ["None"] },
-            { "op": "XOR", "args": [{ "option": "Hex", "string": "a7c35d1f" }, "Rolling add plaintext", false, "32-bit", "Little Endian", 0, "Encode"] },
-            { "op": "XOR", "args": [{ "option": "Hex", "string": "a7c35d1f" }, "Rolling add plaintext", false, "32-bit", "Little Endian", 0, "Decode"] },
+            { "op": "XOR", "args": [{ "option": "Hex", "string": "a7c35d1f" }, "Rolling add plaintext", false, "32-bit", "Little Endian", 0] },
+            { "op": "XOR", "args": [{ "option": "Hex", "string": "a7c35d1f" }, "Rolling add ciphertext", false, "32-bit", "Little Endian", 0] },
             { "op": "To Hex", "args": ["None"] }
         ]
     },
     {
-        name: "XOR: Rolling add ciphertext roundtrip across many blocks (32-bit little endian, Encode then Decode)",
+        name: "XOR: Rolling add ciphertext roundtrip across many blocks (32-bit little endian)",
         input: "01000000020000000300000004000000",
         expectedOutput: "01000000020000000300000004000000",
         recipeConfig: [
             { "op": "From Hex", "args": ["None"] },
-            { "op": "XOR", "args": [{ "option": "Hex", "string": "00000005" }, "Rolling add ciphertext", false, "32-bit", "Little Endian", 0, "Encode"] },
-            { "op": "XOR", "args": [{ "option": "Hex", "string": "00000005" }, "Rolling add ciphertext", false, "32-bit", "Little Endian", 0, "Decode"] },
+            { "op": "XOR", "args": [{ "option": "Hex", "string": "00000005" }, "Rolling add ciphertext", false, "32-bit", "Little Endian", 0] },
+            { "op": "XOR", "args": [{ "option": "Hex", "string": "00000005" }, "Rolling add plaintext", false, "32-bit", "Little Endian", 0] },
             { "op": "To Hex", "args": ["None"] }
         ]
     },
